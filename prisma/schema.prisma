@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+enum MaterialType {
+  VIDEO
+  NOTE
+}
+
+enum PaymentMethod {
+  BKASH
+  NAGAD
+  BANK
+}
+
+enum PurchaseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CommissionStatus {
+  PAID
+  UNPAID
+}
+
+model User {
+  id             String    @id @default(uuid())
+  name           String
+  email          String    @unique
+  password       String
+  role           Role      @default(STUDENT)
+  commissionRate Float?    // Admin sets this when adding a teacher
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  materials      Material[]
+  purchases      Purchase[]
+  reviewsLeft    Review[]    @relation("StudentReviews")
+  reviewsReceived Review[]   @relation("TeacherReviews")
+  commissions    Commission[]
+}
+
+model MainCourse {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  coreSubjects CoreSubject[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model CoreSubject {
+  id           String      @id @default(uuid())
+  name         String
+  mainCourseId String
+  mainCourse   MainCourse  @relation(fields: [mainCourseId], references: [id])
+  subjects     Subject[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Subject {
+  id            String      @id @default(uuid())
+  name          String
+  code          String      @unique
+  price         Float
+  coreSubjectId String
+  coreSubject   CoreSubject @relation(fields: [coreSubjectId], references: [id])
+  materials    Material[]
+  purchases    Purchase[]
+  reviews      Review[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Material {
+  id         String       @id @default(uuid())
+  title      String
+  type       MaterialType
+  url        String
+  teacherId  String
+  teacher    User         @relation(fields: [teacherId], references: [id])
+  subjectId  String
+  subject    Subject      @relation(fields: [subjectId], references: [id])
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+}
+
+model Purchase {
+  id            String         @id @default(uuid())
+  studentId     String
+  student       User           @relation(fields: [studentId], references: [id])
+  subjectId     String
+  subject       Subject        @relation(fields: [subjectId], references: [id])
+  voucherCode   String
+  paymentMethod PaymentMethod
+  status        PurchaseStatus @default(PENDING)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  commissions   Commission[]
+}
+
+model Review {
+  id           String   @id @default(uuid())
+  rating       Int      // 1 to 5
+  comment      String
+  teacherReply String?
+  studentId    String
+  student      User     @relation("StudentReviews", fields: [studentId], references: [id])
+  teacherId    String
+  teacher      User     @relation("TeacherReviews", fields: [teacherId], references: [id])
+  subjectId    String
+  subject      Subject  @relation(fields: [subjectId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Commission {
+  id         String           @id @default(uuid())
+  teacherId  String
+  teacher    User             @relation(fields: [teacherId], references: [id])
+  purchaseId String
+  purchase   Purchase         @relation(fields: [purchaseId], references: [id])
+  amount     Float
+  status     CommissionStatus @default(UNPAID)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+}
