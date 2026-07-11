@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser } from '@/lib/auth';
 
-export async function GET(request: Request, { params }: { params: { subjectId: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ subjectId: string }> }) {
+  const resolvedParams = await params;
+  const subjectId = resolvedParams.subjectId;
+
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -10,7 +13,7 @@ export async function GET(request: Request, { params }: { params: { subjectId: s
   const purchase = await prisma.purchase.findFirst({
     where: {
       studentId: user.userId,
-      subjectId: params.subjectId,
+      subjectId: subjectId,
       status: 'APPROVED'
     }
   });
@@ -19,15 +22,20 @@ export async function GET(request: Request, { params }: { params: { subjectId: s
     return NextResponse.json({ error: 'You do not have access to this course' }, { status: 403 });
   }
 
-  // Fetch materials
-  const materials = await prisma.material.findMany({
-    where: { subjectId: params.subjectId },
+  // Fetch sections with nested materials
+  const sections = await prisma.section.findMany({
+    where: { subjectId: subjectId },
+    include: {
+      materials: {
+        orderBy: { createdAt: 'asc' }
+      }
+    },
     orderBy: { createdAt: 'asc' }
   });
 
   const subject = await prisma.subject.findUnique({
-    where: { id: params.subjectId }
+    where: { id: subjectId }
   });
 
-  return NextResponse.json({ subject, materials });
+  return NextResponse.json({ subject, sections });
 }

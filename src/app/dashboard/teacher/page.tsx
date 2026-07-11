@@ -92,7 +92,7 @@ export default function TeacherDashboard() {
                           {m.type}
                         </span>
                       </td>
-                      <td style={{ padding: '12px' }}>{m.subject?.name}</td>
+                      <td style={{ padding: '12px' }}>{m.section?.subject?.name}</td>
                     </tr>
                   ))}
                 </tbody>

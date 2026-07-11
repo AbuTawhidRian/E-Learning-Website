@@ -77,11 +77,21 @@ model Subject {
   price         Float
   coreSubjectId String
   coreSubject   CoreSubject @relation(fields: [coreSubjectId], references: [id])
-  materials    Material[]
-  purchases    Purchase[]
-  reviews      Review[]
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  sections      Section[]
+  purchases     Purchase[]
+  reviews       Review[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Section {
+  id        String     @id @default(uuid())
+  title     String
+  subjectId String
+  subject   Subject    @relation(fields: [subjectId], references: [id])
+  materials Material[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 }
 
 model Material {
@@ -91,8 +101,8 @@ model Material {
   url        String
   teacherId  String
   teacher    User         @relation(fields: [teacherId], references: [id])
-  subjectId  String
-  subject    Subject      @relation(fields: [subjectId], references: [id])
+  sectionId  String
+  section    Section      @relation(fields: [sectionId], references: [id])
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 }

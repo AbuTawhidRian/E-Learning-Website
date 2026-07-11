@@ -22,7 +22,7 @@ export async function PUT(request: Request) {
 
     const purchase = await prisma.purchase.findUnique({
       where: { id: purchaseId },
-      include: { subject: { include: { materials: true } } }
+      include: { subject: { include: { sections: { include: { materials: true } } } } }
     });
 
     if (!purchase) return NextResponse.json({ error: 'Purchase not found' }, { status: 404 });
@@ -33,7 +33,8 @@ export async function PUT(request: Request) {
     });
 
     if (status === 'APPROVED' && purchase.status === 'PENDING') {
-      const teacherIds = Array.from(new Set(purchase.subject.materials.map(m => m.teacherId)));
+      const allMaterials = purchase.subject.sections.flatMap(s => s.materials);
+      const teacherIds = Array.from(new Set(allMaterials.map(m => m.teacherId)));
       
       for (const teacherId of teacherIds) {
         const teacher = await prisma.user.findUnique({ where: { id: teacherId } });

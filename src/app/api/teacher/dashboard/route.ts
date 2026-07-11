@@ -9,7 +9,7 @@ export async function GET() {
   try {
     const materials = await prisma.material.findMany({
       where: { teacherId: user.userId },
-      include: { subject: true }
+      include: { section: { include: { subject: true } } }
     });
 
     const commissions = await prisma.commission.findMany({

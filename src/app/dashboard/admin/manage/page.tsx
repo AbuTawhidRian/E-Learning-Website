@@ -10,25 +10,32 @@ export default function AdminManage() {
 
   // Form states
   const [courseName, setCourseName] = useState('');
-  
   const [csName, setCsName] = useState('');
   const [csCourseId, setCsCourseId] = useState('');
-
   const [subName, setSubName] = useState('');
   const [subCode, setSubCode] = useState('');
   const [subPrice, setSubPrice] = useState('');
   const [subCsId, setSubCsId] = useState('');
-
   const [tName, setTName] = useState('');
   const [tEmail, setTEmail] = useState('');
   const [tPass, setTPass] = useState('');
   const [tComm, setTComm] = useState('');
 
+  // Course Builder States
+  const [cbMainCourseId, setCbMainCourseId] = useState('');
+  const [cbCoreSubjectId, setCbCoreSubjectId] = useState('');
+  const [cbSubjectId, setCbSubjectId] = useState('');
+  const [curriculumSections, setCurriculumSections] = useState<any[]>([]);
+
+  // Add Section States
+  const [sectionTitle, setSectionTitle] = useState('');
+
+  // Add Material States
   const [mTitle, setMTitle] = useState('');
   const [mType, setMType] = useState('VIDEO');
   const [mUrl, setMUrl] = useState('');
-  const [mSubId, setMSubId] = useState('');
   const [mTeacherId, setMTeacherId] = useState('');
+  const [mSectionId, setMSectionId] = useState('');
 
   const fetchData = async () => {
     try {
@@ -36,10 +43,8 @@ export default function AdminManage() {
       const cData = await cRes.json();
       if(Array.isArray(cData)) {
         setCourses(cData);
-        // Extract core subjects
         const allCs = cData.flatMap(c => c.coreSubjects || []);
         setCoreSubjects(allCs);
-        // Extract subjects
         const allSubs = allCs.flatMap(cs => cs.subjects || []);
         setSubjects(allSubs);
       }
@@ -54,49 +59,78 @@ export default function AdminManage() {
 
   useEffect(() => { fetchData(); }, []);
 
+  // Fetch sections and materials whenever a specific subject is selected
+  const fetchSections = async () => {
+    if (!cbSubjectId) {
+      setCurriculumSections([]);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/sections?subjectId=${cbSubjectId}`);
+      if (!res.ok) {
+        console.error("Failed to fetch sections:", await res.text());
+        return;
+      }
+      const data = await res.json();
+      setCurriculumSections(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    fetchSections();
+  }, [cbSubjectId]);
+
   const handleAddCourse = async (e: any) => {
     e.preventDefault();
-    await fetch('/api/admin/main-courses', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: courseName })
-    });
+    await fetch('/api/admin/main-courses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: courseName }) });
     setCourseName(''); fetchData(); alert('Main Course Added!');
   };
 
   const handleAddCoreSubject = async (e: any) => {
     e.preventDefault();
-    await fetch('/api/admin/core-subjects', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: csName, mainCourseId: csCourseId })
-    });
+    await fetch('/api/admin/core-subjects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: csName, mainCourseId: csCourseId }) });
     setCsName(''); fetchData(); alert('Core Subject Added!');
   };
 
   const handleAddSubject = async (e: any) => {
     e.preventDefault();
-    await fetch('/api/admin/subjects', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: subName, code: subCode, price: subPrice, coreSubjectId: subCsId })
-    });
+    await fetch('/api/admin/subjects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: subName, code: subCode, price: subPrice, coreSubjectId: subCsId }) });
     setSubName(''); setSubCode(''); setSubPrice(''); fetchData(); alert('Subject Added!');
   };
 
   const handleAddTeacher = async (e: any) => {
     e.preventDefault();
-    await fetch('/api/admin/teachers', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: tName, email: tEmail, password: tPass, commissionRate: tComm })
-    });
+    await fetch('/api/admin/teachers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: tName, email: tEmail, password: tPass, commissionRate: tComm }) });
     setTName(''); setTEmail(''); setTPass(''); setTComm(''); fetchData(); alert('Teacher Added!');
+  };
+
+  const handleAddSection = async (e: any) => {
+    e.preventDefault();
+    if (!cbSubjectId) return;
+    await fetch('/api/admin/sections', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: sectionTitle, subjectId: cbSubjectId }) });
+    setSectionTitle('');
+    fetchSections();
   };
 
   const handleAddMaterial = async (e: any) => {
     e.preventDefault();
+    if (!mSectionId) return alert('Please select a Section to upload to!');
+    
     await fetch('/api/admin/materials', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: mTitle, type: mType, url: mUrl, subjectId: mSubId, teacherId: mTeacherId })
+      body: JSON.stringify({ title: mTitle, type: mType, url: mUrl, sectionId: mSectionId, teacherId: mTeacherId })
     });
-    setMTitle(''); setMUrl(''); alert('Material Uploaded!');
+    
+    setMTitle(''); setMUrl(''); setMType('VIDEO');
+    fetchSections(); // Refresh UI
+  };
+
+  const handleDeleteMaterial = async (id: string) => {
+    if(!confirm('Are you sure you want to delete this material?')) return;
+    await fetch(`/api/admin/materials/${id}`, { method: 'DELETE' });
+    fetchSections();
   };
 
   const TabButton = ({ id, label, icon }: { id: string, label: string, icon: string }) => (
@@ -132,27 +166,27 @@ export default function AdminManage() {
             <TabButton id="CORE_SUBJECTS" label="Core Subjects" icon="📁" />
             <TabButton id="SUBJECTS" label="Subjects" icon="📝" />
             <TabButton id="TEACHERS" label="Teachers" icon="🧑‍🏫" />
-            <TabButton id="MATERIALS" label="Materials" icon="🎬" />
+            <TabButton id="MATERIALS" label="Course Builder" icon="🎬" />
           </div>
         </div>
 
         <div style={{ flex: 1 }}>
+          {/* Main Courses */}
           {activeTab === 'COURSES' && (
             <div className="glass-panel slide-up">
               <h2>Add Main Course</h2>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>Create top-level categories like "Bachelor of Business Administration".</p>
               <form onSubmit={handleAddCourse} className="flex-col">
                 <label>Course Name</label>
-                <input type="text" value={courseName} onChange={e=>setCourseName(e.target.value)} required placeholder="e.g. BBA" />
+                <input type="text" value={courseName} onChange={e=>setCourseName(e.target.value)} required />
                 <button className="btn btn-primary" type="submit" style={{ alignSelf: 'flex-start', marginTop: '16px' }}>Save Course</button>
               </form>
             </div>
           )}
 
+          {/* Core Subjects */}
           {activeTab === 'CORE_SUBJECTS' && (
             <div className="glass-panel slide-up">
               <h2>Add Core Subject</h2>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>Create a folder/category (e.g., "Accounting") under a Main Course.</p>
               <form onSubmit={handleAddCoreSubject} className="flex-col">
                 <label>Parent Main Course</label>
                 <select value={csCourseId} onChange={e=>setCsCourseId(e.target.value)} required>
@@ -160,16 +194,16 @@ export default function AdminManage() {
                   {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
                 <label>Core Subject Name</label>
-                <input type="text" value={csName} onChange={e=>setCsName(e.target.value)} required placeholder="e.g. Accounting" />
+                <input type="text" value={csName} onChange={e=>setCsName(e.target.value)} required />
                 <button className="btn btn-primary" type="submit" style={{ alignSelf: 'flex-start', marginTop: '16px' }}>Save Core Subject</button>
               </form>
             </div>
           )}
 
+          {/* Subjects */}
           {activeTab === 'SUBJECTS' && (
             <div className="glass-panel slide-up">
               <h2>Add Subject</h2>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>Create an actual enrollable class (e.g., "Principles of Accounting") under a Core Subject.</p>
               <form onSubmit={handleAddSubject} className="flex-col">
                 <label>Parent Core Subject</label>
                 <select value={subCsId} onChange={e=>setSubCsId(e.target.value)} required>
@@ -177,73 +211,159 @@ export default function AdminManage() {
                   {coreSubjects.map(cs => <option key={cs.id} value={cs.id}>{cs.name}</option>)}
                 </select>
                 <label>Subject Name</label>
-                <input type="text" value={subName} onChange={e=>setSubName(e.target.value)} required placeholder="e.g. Principles of Accounting" />
+                <input type="text" value={subName} onChange={e=>setSubName(e.target.value)} required />
                 <div style={{ display: 'flex', gap: '16px' }}>
-                  <div style={{ flex: 1 }}>
-                    <label>Subject Code</label>
-                    <input type="text" value={subCode} onChange={e=>setSubCode(e.target.value)} required placeholder="ACC101" />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label>Price (৳)</label>
-                    <input type="number" value={subPrice} onChange={e=>setSubPrice(e.target.value)} required placeholder="1000" />
-                  </div>
+                  <div style={{ flex: 1 }}><label>Code</label><input type="text" value={subCode} onChange={e=>setSubCode(e.target.value)} required /></div>
+                  <div style={{ flex: 1 }}><label>Price (৳)</label><input type="number" value={subPrice} onChange={e=>setSubPrice(e.target.value)} required /></div>
                 </div>
                 <button className="btn btn-primary" type="submit" style={{ alignSelf: 'flex-start', marginTop: '16px' }}>Save Subject</button>
               </form>
             </div>
           )}
 
+          {/* Teachers */}
           {activeTab === 'TEACHERS' && (
             <div className="glass-panel slide-up">
-              <h2>Add Teacher Account</h2>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>Register a new teacher and set their global commission rate.</p>
+              <h2>Add Teacher</h2>
               <form onSubmit={handleAddTeacher} className="flex-col">
-                <label>Full Name</label>
-                <input type="text" value={tName} onChange={e=>setTName(e.target.value)} required placeholder="John Doe" />
-                <label>Email & Password</label>
+                <label>Name</label><input type="text" value={tName} onChange={e=>setTName(e.target.value)} required />
                 <div style={{ display: 'flex', gap: '16px' }}>
-                  <input style={{ flex: 1 }} type="email" value={tEmail} onChange={e=>setTEmail(e.target.value)} required placeholder="teacher@example.com" />
-                  <input style={{ flex: 1 }} type="password" value={tPass} onChange={e=>setTPass(e.target.value)} required placeholder="Pass123" />
+                  <input style={{ flex: 1 }} type="email" value={tEmail} onChange={e=>setTEmail(e.target.value)} required placeholder="Email" />
+                  <input style={{ flex: 1 }} type="password" value={tPass} onChange={e=>setTPass(e.target.value)} required placeholder="Password" />
                 </div>
-                <label>Commission Rate (%)</label>
-                <input type="number" value={tComm} onChange={e=>setTComm(e.target.value)} required placeholder="e.g. 30" />
-                <button className="btn btn-primary" type="submit" style={{ alignSelf: 'flex-start', marginTop: '16px' }}>Create Teacher</button>
+                <label>Commission Rate (%)</label><input type="number" value={tComm} onChange={e=>setTComm(e.target.value)} required />
+                <button className="btn btn-primary" type="submit" style={{ alignSelf: 'flex-start', marginTop: '16px' }}>Save Teacher</button>
               </form>
             </div>
           )}
 
+          {/* COURSE BUILDER */}
           {activeTab === 'MATERIALS' && (
-            <div className="glass-panel slide-up">
-              <h2>Upload Material</h2>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>Upload videos or notes, assigning them to a specific subject and teacher.</p>
-              <form onSubmit={handleAddMaterial} className="flex-col">
-                <label>Subject</label>
-                <select value={mSubId} onChange={e=>setMSubId(e.target.value)} required>
-                  <option value="">Select Subject</option>
-                  {subjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
-                </select>
-                <label>Assigned Teacher</label>
-                <select value={mTeacherId} onChange={e=>setMTeacherId(e.target.value)} required>
-                  <option value="">Select Teacher</option>
-                  {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.commissionRate}% comm)</option>)}
-                </select>
-                <div style={{ display: 'flex', gap: '16px' }}>
-                  <div style={{ flex: 2 }}>
-                    <label>Material Title</label>
-                    <input type="text" value={mTitle} onChange={e=>setMTitle(e.target.value)} required placeholder="Lecture 1: Intro" />
+            <div className="slide-up flex-col gap-6">
+              
+              {/* Step 1: Course Selector */}
+              <div className="glass-panel">
+                <h2>Advanced Course Builder</h2>
+                <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label>1. Main Course</label>
+                    <select value={cbMainCourseId} onChange={e => { setCbMainCourseId(e.target.value); setCbCoreSubjectId(''); setCbSubjectId(''); }}>
+                      <option value="">-- Choose Main Course --</option>
+                      {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <label>Type</label>
-                    <select value={mType} onChange={e=>setMType(e.target.value)}>
-                      <option value="VIDEO">Video</option>
-                      <option value="NOTE">Note/PDF</option>
+                    <label>2. Core Subject</label>
+                    <select value={cbCoreSubjectId} onChange={e => { setCbCoreSubjectId(e.target.value); setCbSubjectId(''); }} disabled={!cbMainCourseId}>
+                      <option value="">-- Choose Folder --</option>
+                      {coreSubjects.filter(cs => cs.mainCourseId === cbMainCourseId).map(cs => <option key={cs.id} value={cs.id}>{cs.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label>3. Class (Subject)</label>
+                    <select value={cbSubjectId} onChange={e => setCbSubjectId(e.target.value)} disabled={!cbCoreSubjectId}>
+                      <option value="">-- Choose Class --</option>
+                      {subjects.filter(s => s.coreSubjectId === cbCoreSubjectId).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                   </div>
                 </div>
-                <label>Resource URL</label>
-                <input type="url" value={mUrl} onChange={e=>setMUrl(e.target.value)} required placeholder="https://youtube.com/... or https://drive.google.com/..." />
-                <button className="btn btn-primary" type="submit" style={{ alignSelf: 'flex-start', marginTop: '16px' }}>Upload Material</button>
-              </form>
+              </div>
+
+              {/* Step 2: Sections & Materials */}
+              {cbSubjectId && (
+                <>
+                  <div className="glass-panel slide-up">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                      <h3 style={{ margin: 0 }}>Course Curriculum</h3>
+                      
+                      <form onSubmit={handleAddSection} style={{ display: 'flex', gap: '8px' }}>
+                        <input 
+                          type="text" value={sectionTitle} onChange={e => setSectionTitle(e.target.value)} 
+                          placeholder="New Section (e.g. Module 1)" required style={{ padding: '8px' }} 
+                        />
+                        <button className="btn btn-primary" type="submit" style={{ padding: '8px 16px' }}>+ Add Section</button>
+                      </form>
+                    </div>
+
+                    {curriculumSections.length === 0 ? (
+                      <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '32px' }}>Start by creating your first Section above.</p>
+                    ) : (
+                      <div className="flex-col gap-4">
+                        {curriculumSections.map((section, sIdx) => (
+                          <div key={section.id} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '16px' }}>
+                            <h4 style={{ fontSize: '1.2rem', marginBottom: '16px', color: 'var(--accent-primary)' }}>
+                              Section {sIdx + 1}: {section.title}
+                            </h4>
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                              {section.materials && section.materials.length > 0 ? (
+                                section.materials.map((m: any, mIdx: number) => (
+                                  <li key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(0,0,0,0.3)', marginBottom: '8px', borderRadius: '4px', borderLeft: `4px solid ${m.type === 'VIDEO' ? 'var(--accent-primary)' : 'var(--success)'}` }}>
+                                    <div>
+                                      <strong>{mIdx + 1}. {m.title}</strong>
+                                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginLeft: '8px' }}>
+                                        ({m.type}) &bull; Teacher: {teachers.find(t => t.id === m.teacherId)?.name || 'Unknown'}
+                                      </span>
+                                    </div>
+                                    <button onClick={() => handleDeleteMaterial(m.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
+                                      Delete
+                                    </button>
+                                  </li>
+                                ))
+                              ) : (
+                                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: 'italic', margin: 0 }}>No materials in this section yet.</p>
+                              )}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add Material Form */}
+                  {curriculumSections.length > 0 && (
+                    <div className="glass-panel slide-up">
+                      <h3 style={{ marginBottom: '24px' }}>Add Material to Curriculum</h3>
+                      <form onSubmit={handleAddMaterial} className="flex-col">
+                        <div style={{ display: 'flex', gap: '16px' }}>
+                          <div style={{ flex: 1 }}>
+                            <label>Target Section</label>
+                            <select value={mSectionId} onChange={e=>setMSectionId(e.target.value)} required>
+                              <option value="">-- Choose Section --</option>
+                              {curriculumSections.map((s, idx) => <option key={s.id} value={s.id}>Section {idx+1}: {s.title}</option>)}
+                            </select>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <label>Assigned Teacher</label>
+                            <select value={mTeacherId} onChange={e=>setMTeacherId(e.target.value)} required>
+                              <option value="">Select Teacher for Commission</option>
+                              {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.commissionRate}% comm)</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        
+                        <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
+                          <div style={{ flex: 2 }}>
+                            <label>Material Title</label>
+                            <input type="text" value={mTitle} onChange={e=>setMTitle(e.target.value)} required placeholder="Lecture 1: Intro" />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <label>Type</label>
+                            <select value={mType} onChange={e=>setMType(e.target.value)}>
+                              <option value="VIDEO">Video</option>
+                              <option value="NOTE">Note/PDF</option>
+                            </select>
+                          </div>
+                        </div>
+                        
+                        <label style={{ marginTop: '16px' }}>Resource URL</label>
+                        <input type="url" value={mUrl} onChange={e=>setMUrl(e.target.value)} required placeholder="https://youtube.com/..." />
+                        
+                        <button className="btn btn-primary" type="submit" style={{ alignSelf: 'flex-start', marginTop: '16px' }}>Upload & Attach to Section</button>
+                      </form>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
