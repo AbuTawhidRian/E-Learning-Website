@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
+import toast, { Toaster } from 'react-hot-toast';
 
 export default function AdminManage() {
   const [activeTab, setActiveTab] = useState('COURSES');
@@ -54,6 +55,7 @@ export default function AdminManage() {
       if(Array.isArray(tData)) setTeachers(tData);
     } catch(err) {
       console.error(err);
+      toast.error('Failed to load data');
     }
   };
 
@@ -85,38 +87,42 @@ export default function AdminManage() {
   const handleAddCourse = async (e: any) => {
     e.preventDefault();
     await fetch('/api/admin/main-courses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: courseName }) });
-    setCourseName(''); fetchData(); alert('Main Course Added!');
+    setCourseName(''); fetchData(); toast.success('Main Course Added Successfully!');
   };
 
   const handleAddCoreSubject = async (e: any) => {
     e.preventDefault();
     await fetch('/api/admin/core-subjects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: csName, mainCourseId: csCourseId }) });
-    setCsName(''); fetchData(); alert('Core Subject Added!');
+    setCsName(''); fetchData(); toast.success('Core Subject Folder Added!');
   };
 
   const handleAddSubject = async (e: any) => {
     e.preventDefault();
     await fetch('/api/admin/subjects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: subName, code: subCode, price: subPrice, coreSubjectId: subCsId }) });
-    setSubName(''); setSubCode(''); setSubPrice(''); fetchData(); alert('Subject Added!');
+    setSubName(''); setSubCode(''); setSubPrice(''); fetchData(); toast.success('Class (Subject) Added!');
   };
 
   const handleAddTeacher = async (e: any) => {
     e.preventDefault();
     await fetch('/api/admin/teachers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: tName, email: tEmail, password: tPass, commissionRate: tComm }) });
-    setTName(''); setTEmail(''); setTPass(''); setTComm(''); fetchData(); alert('Teacher Added!');
+    setTName(''); setTEmail(''); setTPass(''); setTComm(''); fetchData(); toast.success('Teacher Account Created!');
   };
 
   const handleAddSection = async (e: any) => {
     e.preventDefault();
-    if (!cbSubjectId) return;
+    if (!cbSubjectId) {
+      toast.error('Select a class first!');
+      return;
+    }
     await fetch('/api/admin/sections', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: sectionTitle, subjectId: cbSubjectId }) });
     setSectionTitle('');
     fetchSections();
+    toast.success('Curriculum Section Created!');
   };
 
   const handleAddMaterial = async (e: any) => {
     e.preventDefault();
-    if (!mSectionId) return alert('Please select a Section to upload to!');
+    if (!mSectionId) return toast.error('Please select a Section to upload to!');
     
     await fetch('/api/admin/materials', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -125,12 +131,14 @@ export default function AdminManage() {
     
     setMTitle(''); setMUrl(''); setMType('VIDEO');
     fetchSections(); // Refresh UI
+    toast.success('Material Successfully Uploaded to Course!');
   };
 
   const handleDeleteMaterial = async (id: string) => {
     if(!confirm('Are you sure you want to delete this material?')) return;
     await fetch(`/api/admin/materials/${id}`, { method: 'DELETE' });
     fetchSections();
+    toast.success('Material Deleted from Course');
   };
 
   const TabButton = ({ id, label, icon }: { id: string, label: string, icon: string }) => (
@@ -150,6 +158,7 @@ export default function AdminManage() {
 
   return (
     <div className="flex-col gap-6">
+      <Toaster position="top-right" />
       <div className="flex justify-between items-center">
         <h1 className="nav-brand" style={{ fontSize: '2.5rem' }}>Management Hub</h1>
         <a href="/dashboard/admin" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>&larr; Back to Dashboard</a>
@@ -177,7 +186,7 @@ export default function AdminManage() {
               <h2>Add Main Course</h2>
               <form onSubmit={handleAddCourse} className="flex-col">
                 <label>Course Name</label>
-                <input type="text" value={courseName} onChange={e=>setCourseName(e.target.value)} required />
+                <input type="text" value={courseName} onChange={e=>setCourseName(e.target.value)} required placeholder="e.g. Bachelor of Business Administration" />
                 <button className="btn btn-primary" type="submit" style={{ alignSelf: 'flex-start', marginTop: '16px' }}>Save Course</button>
               </form>
             </div>
@@ -194,7 +203,7 @@ export default function AdminManage() {
                   {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
                 <label>Core Subject Name</label>
-                <input type="text" value={csName} onChange={e=>setCsName(e.target.value)} required />
+                <input type="text" value={csName} onChange={e=>setCsName(e.target.value)} required placeholder="e.g. Accounting, Web Development" />
                 <button className="btn btn-primary" type="submit" style={{ alignSelf: 'flex-start', marginTop: '16px' }}>Save Core Subject</button>
               </form>
             </div>
@@ -203,18 +212,18 @@ export default function AdminManage() {
           {/* Subjects */}
           {activeTab === 'SUBJECTS' && (
             <div className="glass-panel slide-up">
-              <h2>Add Subject</h2>
+              <h2>Add Subject (Class)</h2>
               <form onSubmit={handleAddSubject} className="flex-col">
                 <label>Parent Core Subject</label>
                 <select value={subCsId} onChange={e=>setSubCsId(e.target.value)} required>
-                  <option value="">Select Core Subject</option>
+                  <option value="">Select Core Subject Folder</option>
                   {coreSubjects.map(cs => <option key={cs.id} value={cs.id}>{cs.name}</option>)}
                 </select>
                 <label>Subject Name</label>
-                <input type="text" value={subName} onChange={e=>setSubName(e.target.value)} required />
+                <input type="text" value={subName} onChange={e=>setSubName(e.target.value)} required placeholder="e.g. Advanced Financial Accounting" />
                 <div style={{ display: 'flex', gap: '16px' }}>
-                  <div style={{ flex: 1 }}><label>Code</label><input type="text" value={subCode} onChange={e=>setSubCode(e.target.value)} required /></div>
-                  <div style={{ flex: 1 }}><label>Price (৳)</label><input type="number" value={subPrice} onChange={e=>setSubPrice(e.target.value)} required /></div>
+                  <div style={{ flex: 1 }}><label>Subject Code</label><input type="text" value={subCode} onChange={e=>setSubCode(e.target.value)} required placeholder="e.g. FIN301" /></div>
+                  <div style={{ flex: 1 }}><label>Price (৳)</label><input type="number" value={subPrice} onChange={e=>setSubPrice(e.target.value)} required placeholder="e.g. 1500" /></div>
                 </div>
                 <button className="btn btn-primary" type="submit" style={{ alignSelf: 'flex-start', marginTop: '16px' }}>Save Subject</button>
               </form>
@@ -224,15 +233,15 @@ export default function AdminManage() {
           {/* Teachers */}
           {activeTab === 'TEACHERS' && (
             <div className="glass-panel slide-up">
-              <h2>Add Teacher</h2>
+              <h2>Add Teacher Account</h2>
               <form onSubmit={handleAddTeacher} className="flex-col">
-                <label>Name</label><input type="text" value={tName} onChange={e=>setTName(e.target.value)} required />
+                <label>Full Name</label><input type="text" value={tName} onChange={e=>setTName(e.target.value)} required placeholder="e.g. Amanullah Khandaker" />
                 <div style={{ display: 'flex', gap: '16px' }}>
-                  <input style={{ flex: 1 }} type="email" value={tEmail} onChange={e=>setTEmail(e.target.value)} required placeholder="Email" />
-                  <input style={{ flex: 1 }} type="password" value={tPass} onChange={e=>setTPass(e.target.value)} required placeholder="Password" />
+                  <div style={{ flex: 1 }}><label>Email Address</label><input type="email" value={tEmail} onChange={e=>setTEmail(e.target.value)} required placeholder="teacher@educore.com" /></div>
+                  <div style={{ flex: 1 }}><label>Initial Password</label><input type="password" value={tPass} onChange={e=>setTPass(e.target.value)} required placeholder="Minimum 6 characters" /></div>
                 </div>
-                <label>Commission Rate (%)</label><input type="number" value={tComm} onChange={e=>setTComm(e.target.value)} required />
-                <button className="btn btn-primary" type="submit" style={{ alignSelf: 'flex-start', marginTop: '16px' }}>Save Teacher</button>
+                <label>Commission Rate (%)</label><input type="number" value={tComm} onChange={e=>setTComm(e.target.value)} required placeholder="e.g. 30" />
+                <button className="btn btn-primary" type="submit" style={{ alignSelf: 'flex-start', marginTop: '16px' }}>Create Teacher Account</button>
               </form>
             </div>
           )}
@@ -279,7 +288,7 @@ export default function AdminManage() {
                       <form onSubmit={handleAddSection} style={{ display: 'flex', gap: '8px' }}>
                         <input 
                           type="text" value={sectionTitle} onChange={e => setSectionTitle(e.target.value)} 
-                          placeholder="New Section (e.g. Module 1)" required style={{ padding: '8px' }} 
+                          placeholder="New Section (e.g. Module 1: Basics)" required style={{ padding: '8px', minWidth: '250px' }} 
                         />
                         <button className="btn btn-primary" type="submit" style={{ padding: '8px 16px' }}>+ Add Section</button>
                       </form>
@@ -344,7 +353,7 @@ export default function AdminManage() {
                         <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
                           <div style={{ flex: 2 }}>
                             <label>Material Title</label>
-                            <input type="text" value={mTitle} onChange={e=>setMTitle(e.target.value)} required placeholder="Lecture 1: Intro" />
+                            <input type="text" value={mTitle} onChange={e=>setMTitle(e.target.value)} required placeholder="e.g. Lecture 1: Introduction to topic" />
                           </div>
                           <div style={{ flex: 1 }}>
                             <label>Type</label>
@@ -356,7 +365,7 @@ export default function AdminManage() {
                         </div>
                         
                         <label style={{ marginTop: '16px' }}>Resource URL</label>
-                        <input type="url" value={mUrl} onChange={e=>setMUrl(e.target.value)} required placeholder="https://youtube.com/..." />
+                        <input type="url" value={mUrl} onChange={e=>setMUrl(e.target.value)} required placeholder="e.g. https://youtube.com/... or Google Drive Link" />
                         
                         <button className="btn btn-primary" type="submit" style={{ alignSelf: 'flex-start', marginTop: '16px' }}>Upload & Attach to Section</button>
                       </form>

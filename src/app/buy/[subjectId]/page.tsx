@@ -1,5 +1,5 @@
 "use client";
-import { useState, use } from 'react';
+import { useState, use, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function BuyCourse({ params }: { params: Promise<{ subjectId: string }> }) {
@@ -8,7 +8,26 @@ export default function BuyCourse({ params }: { params: Promise<{ subjectId: str
   const [paymentMethod, setPaymentMethod] = useState('BKASH');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [loadingAuth, setLoadingAuth] = useState(true);
   const router = useRouter();
+
+  // Enforce Authentication
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.user) {
+          router.push('/login?message=Please log in or create an account to enroll.');
+        } else if (data.user.role === 'ADMIN' || data.user.role === 'TEACHER') {
+          router.push(`/dashboard/${data.user.role.toLowerCase()}`);
+        } else {
+          setLoadingAuth(false);
+        }
+      })
+      .catch(() => {
+        router.push('/login');
+      });
+  }, [router]);
 
   const handlePurchase = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,6 +45,14 @@ export default function BuyCourse({ params }: { params: Promise<{ subjectId: str
       setError(data.error || 'Purchase submission failed');
     }
   };
+
+  if (loadingAuth) {
+    return (
+      <div className="container mt-8" style={{ textAlign: 'center' }}>
+        <h3 style={{ color: 'var(--text-secondary)' }}>Verifying account...</h3>
+      </div>
+    );
+  }
 
   if (success) {
     return (

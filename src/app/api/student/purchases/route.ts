@@ -7,20 +7,45 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const { subjectId, voucherCode, paymentMethod } = await request.json();
+    const { subjectId, subjectIds, voucherCode, paymentMethod } = await request.json();
+    
+    // Support both single purchase and cart array purchase
+    const idsToProcess = subjectIds || (subjectId ? [subjectId] : []);
+    
+    if (idsToProcess.length === 0) {
+      return NextResponse.json({ error: 'No subjects provided' }, { status: 400 });
+    }
 
-    const purchase = await prisma.purchase.create({
-      data: {
+    // Check for existing purchases
+    const existingPurchases = await prisma.purchase.findMany({
+      where: {
         studentId: user.userId,
-        subjectId,
-        voucherCode,
-        paymentMethod,
-        status: 'PENDING'
+        subjectId: { in: idsToProcess },
+        status: { in: ['PENDING', 'APPROVED'] }
       }
     });
 
-    return NextResponse.json(purchase, { status: 201 });
+    if (existingPurchases.length > 0) {
+      return NextResponse.json({ error: 'You have already purchased or requested one or more of these courses' }, { status: 400 });
+    }
+
+    const purchases = await Promise.all(
+      idsToProcess.map((id: string) => 
+        prisma.purchase.create({
+          data: {
+            studentId: user.userId,
+            subjectId: id,
+            voucherCode,
+            paymentMethod,
+            status: 'PENDING'
+          }
+        })
+      )
+    );
+
+    return NextResponse.json(purchases, { status: 201 });
   } catch (error) {
+    console.error(error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

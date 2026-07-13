@@ -10,16 +10,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ subj
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Verify the student has an approved purchase for this subject
-  const purchase = await prisma.purchase.findFirst({
-    where: {
-      studentId: user.userId,
-      subjectId: subjectId,
-      status: 'APPROVED'
-    }
-  });
+  if (user.role === 'STUDENT') {
+    const purchase = await prisma.purchase.findFirst({
+      where: {
+        studentId: user.userId,
+        subjectId: subjectId,
+        status: 'APPROVED'
+      }
+    });
 
-  if (!purchase) {
-    return NextResponse.json({ error: 'You do not have access to this course' }, { status: 403 });
+    if (!purchase) {
+      return NextResponse.json({ error: 'You do not have access to this course' }, { status: 403 });
+    }
   }
 
   // Fetch sections with nested materials

@@ -41,6 +41,13 @@ model User {
   password       String
   role           Role      @default(STUDENT)
   commissionRate Float?    // Admin sets this when adding a teacher
+  phone          String?
+  address        String?
+  profilePicture String?   // Base64 encoded image string
+  currentSessionId String? // Used to prevent multi-device logins
+  lastLoginDevice String?
+  lastLoginDate  DateTime?
+  loginHistory   Json?     // Array of recent logins { device, date }
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -50,6 +57,7 @@ model User {
   reviewsLeft    Review[]    @relation("StudentReviews")
   reviewsReceived Review[]   @relation("TeacherReviews")
   commissions    Commission[]
+  educations     Education[]
 }
 
 model MainCourse {
@@ -133,6 +141,18 @@ model Review {
   teacher      User     @relation("TeacherReviews", fields: [teacherId], references: [id])
   subjectId    String
   subject      Subject  @relation(fields: [subjectId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Education {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  degree       String
+  major        String?
+  institution  String
+  passingYear  String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
