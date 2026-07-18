@@ -32,13 +32,58 @@ export async function GET() {
       take: 5
     });
 
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const salesByDay: Record<string, number> = {};
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      salesByDay[d.toISOString().split('T')[0]] = 0;
+    }
+
+    allPurchases.forEach(p => {
+      if (p.status === 'APPROVED') {
+        const dateStr = new Date(p.createdAt).toISOString().split('T')[0];
+        if (salesByDay[dateStr] !== undefined) {
+          salesByDay[dateStr] += p.subject?.price || 0;
+        }
+      }
+    });
+
+    const chartData = Object.keys(salesByDay).map(date => ({
+      date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      revenue: salesByDay[date]
+    }));
+
+    const subjectPurchases = await prisma.purchase.groupBy({
+      by: ['subjectId'],
+      where: { status: 'APPROVED' },
+      _count: { subjectId: true },
+      orderBy: { _count: { subjectId: 'desc' } },
+      take: 5
+    });
+
+    const popularCourses = await Promise.all(
+      subjectPurchases.map(async (sp) => {
+        const subject = await prisma.subject.findUnique({ where: { id: sp.subjectId } });
+        return {
+          id: subject?.id,
+          name: subject?.name,
+          enrollments: sp._count.subjectId
+        };
+      })
+    );
+
     return NextResponse.json({
       totalStudents,
       totalTeachers,
       totalSubjects,
       totalRevenue,
       pendingPurchases,
-      recentPurchases
+      recentPurchases,
+      chartData,
+      popularCourses
     });
   } catch (error) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

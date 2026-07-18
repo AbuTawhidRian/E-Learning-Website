@@ -14,6 +14,17 @@ export default function LearnPortal({ params }: { params: Promise<{ subjectId: s
   const [countdown, setCountdown] = useState<number | null>(null);
   const [nextMaterial, setNextMaterial] = useState<any>(null);
 
+  const [progresses, setProgresses] = useState<any[]>([]);
+  
+  // Q&A and Reviews states
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [newQuestionTitle, setNewQuestionTitle] = useState('');
+  const [newQuestionBody, setNewQuestionBody] = useState('');
+  const [replyBody, setReplyBody] = useState<Record<string, string>>({});
+  const [newReviewRating, setNewReviewRating] = useState(5);
+  const [newReviewComment, setNewReviewComment] = useState('');
+
   useEffect(() => {
     fetch(`/api/student/learn/${resolvedParams.subjectId}`)
       .then(res => {
@@ -38,6 +49,24 @@ export default function LearnPortal({ params }: { params: Promise<{ subjectId: s
         }
       })
       .catch(err => setError(err.message));
+
+    // Fetch progress
+    fetch(`/api/student/progress?subjectId=${resolvedParams.subjectId}`)
+      .then(res => res.json())
+      .then(data => setProgresses(data))
+      .catch(console.error);
+
+    // Fetch QA
+    fetch(`/api/student/qa?subjectId=${resolvedParams.subjectId}`)
+      .then(res => res.json())
+      .then(data => setQuestions(data))
+      .catch(console.error);
+
+    // Fetch Reviews
+    fetch(`/api/student/reviews?subjectId=${resolvedParams.subjectId}`)
+      .then(res => res.json())
+      .then(data => setReviews(data))
+      .catch(console.error);
   }, [resolvedParams.subjectId]);
 
   // Handle countdown timer for autoplay
@@ -89,6 +118,91 @@ export default function LearnPortal({ params }: { params: Promise<{ subjectId: s
     setExpandedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
   };
 
+  const handleMarkAsComplete = async () => {
+    if (!activeMaterial) return;
+    try {
+      const res = await fetch('/api/student/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ materialId: activeMaterial.id, completed: true })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProgresses(prev => {
+          const idx = prev.findIndex(p => p.materialId === activeMaterial.id);
+          if (idx !== -1) {
+            const newP = [...prev];
+            newP[idx] = data.progress;
+            return newP;
+          }
+          return [...prev, data.progress];
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handlePostQuestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newQuestionBody) return;
+    try {
+      const res = await fetch('/api/student/qa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subjectId: data.subject.id, title: newQuestionTitle, questionBody: newQuestionBody })
+      });
+      if (res.ok) {
+        const { question } = await res.json();
+        setQuestions([question, ...questions]);
+        setNewQuestionTitle('');
+        setNewQuestionBody('');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handlePostReply = async (questionId: string) => {
+    if (!replyBody[questionId]) return;
+    try {
+      const res = await fetch('/api/student/qa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'ANSWER', questionId, answerBody: replyBody[questionId] })
+      });
+      if (res.ok) {
+        const { answer } = await res.json();
+        setQuestions(questions.map(q => q.id === questionId ? { ...q, answers: [...(q.answers || []), answer] } : q));
+        setReplyBody({ ...replyBody, [questionId]: '' });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handlePostReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newReviewComment) return;
+    try {
+      const res = await fetch('/api/student/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subjectId: data.subject.id, rating: newReviewRating, comment: newReviewComment })
+      });
+      if (res.ok) {
+        const { review } = await res.json();
+        setReviews([review, ...reviews]);
+        setNewReviewComment('');
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to post review.");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   if (error) return <div className="container mt-8"><p style={{color:'var(--danger)', textAlign:'center', fontSize:'1.2rem'}}>{error}</p></div>;
   if (!data) return <div className="container mt-8" style={{textAlign:'center', fontSize:'1.2rem'}}>Loading classroom...</div>;
 
@@ -126,48 +240,64 @@ export default function LearnPortal({ params }: { params: Promise<{ subjectId: s
         <div style={{ flex: '3 1 700px', background: '#000', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative' }}>
           {activeMaterial ? (
             activeMaterial.type === 'VIDEO' ? (
-              <div style={{ position: 'relative', paddingBottom: '56.25%', width: '100%', height: '100%', minHeight: '500px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                
-                {/* Auto Play Overlay */}
-                {countdown !== null && nextMaterial ? (
-                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.9)', zIndex: 50, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-                    <p style={{ fontSize: '1.2rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>Up next</p>
-                    <h2 style={{ fontSize: '2rem', marginBottom: '40px' }}>{nextMaterial.title}</h2>
-                    
-                    <div style={{ position: 'relative', width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
-                      <svg viewBox="0 0 36 36" style={{ position: 'absolute', width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
-                        <path stroke="rgba(255,255,255,0.2)" fill="none" strokeWidth="2" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                        <path stroke="var(--accent-primary)" fill="none" strokeWidth="2" strokeDasharray={`${(countdown / 5) * 100}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                      </svg>
-                      <button onClick={handlePlayNext} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer', zIndex: 10 }}>
-                        ▶
+              <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
+                <div style={{ position: 'relative', paddingBottom: '56.25%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+                  
+                  {/* Auto Play Overlay */}
+                  {countdown !== null && nextMaterial ? (
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.9)', zIndex: 50, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+                      <p style={{ fontSize: '1.2rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>Up next</p>
+                      <h2 style={{ fontSize: '2rem', marginBottom: '40px' }}>{nextMaterial.title}</h2>
+                      
+                      <div style={{ position: 'relative', width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
+                        <svg viewBox="0 0 36 36" style={{ position: 'absolute', width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                          <path stroke="rgba(255,255,255,0.2)" fill="none" strokeWidth="2" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                          <path stroke="var(--accent-primary)" fill="none" strokeWidth="2" strokeDasharray={`${(countdown / 5) * 100}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                        </svg>
+                        <button onClick={handlePlayNext} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer', zIndex: 10 }}>
+                          ▶
+                        </button>
+                      </div>
+                      
+                      <button onClick={handleCancelAutoPlay} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1rem', textDecoration: 'underline' }}>
+                        Cancel
                       </button>
                     </div>
-                    
-                    <button onClick={handleCancelAutoPlay} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1rem', textDecoration: 'underline' }}>
-                      Cancel
-                    </button>
-                  </div>
-                ) : null}
+                  ) : null}
 
-                {/* Video Player */}
-                {currentVideoId ? (
-                  <YouTube
-                    videoId={currentVideoId}
-                    opts={{
-                      width: '100%',
-                      height: '100%',
-                      playerVars: { autoplay: 1 }
-                    }}
-                    onEnd={handleVideoEnd}
-                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
-                    iframeClassName="w-full h-full border-none"
-                  />
-                ) : (
-                  <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
-                    Invalid YouTube URL
-                  </div>
-                )}
+                  {/* Video Player */}
+                  {currentVideoId ? (
+                    <YouTube
+                      videoId={currentVideoId}
+                      opts={{
+                        width: '100%',
+                        height: '100%',
+                        playerVars: { autoplay: 1 }
+                      }}
+                      onEnd={handleVideoEnd}
+                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+                      iframeClassName="w-full h-full border-none"
+                    />
+                  ) : (
+                    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+                      Invalid YouTube URL
+                    </div>
+                  )}
+                </div>
+                <div style={{ padding: '16px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.1)', background: '#020617' }}>
+                  <h2 style={{ fontSize: '1.2rem', margin: 0 }}>{activeMaterial.title}</h2>
+                  <button 
+                    onClick={handleMarkAsComplete}
+                    className="btn btn-primary" 
+                    disabled={progresses.some(p => p.materialId === activeMaterial.id && p.completed)}
+                    style={{ 
+                      padding: '8px 16px', fontSize: '0.9rem', 
+                      background: progresses.some(p => p.materialId === activeMaterial.id && p.completed) ? 'rgba(16, 185, 129, 0.2)' : 'var(--accent-primary)',
+                      color: progresses.some(p => p.materialId === activeMaterial.id && p.completed) ? '#10b981' : '#fff'
+                    }}>
+                    {progresses.some(p => p.materialId === activeMaterial.id && p.completed) ? '✓ Completed' : 'Mark as Complete'}
+                  </button>
+                </div>
               </div>
             ) : (
               <div style={{ padding: '64px', textAlign: 'center', background: '#111827', minHeight: '500px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -187,7 +317,13 @@ export default function LearnPortal({ params }: { params: Promise<{ subjectId: s
         {/* Right Sidebar Playlist (25%) - ACCORDION STYLE */}
         <div style={{ flex: '1 1 300px', background: '#0f172a', borderLeft: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 100px)' }}>
           <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,0.1)', background: '#1e293b' }}>
-            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Course Content</h3>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', marginBottom: '12px' }}>Course Content</h3>
+            <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+              <div style={{ width: `${allMaterials.length > 0 ? Math.round((progresses.filter(p => p.completed).length / allMaterials.length) * 100) : 0}%`, height: '100%', background: '#10b981', transition: 'width 0.3s ease' }}></div>
+            </div>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '8px 0 0 0', textAlign: 'right' }}>
+              {progresses.filter(p => p.completed).length} / {allMaterials.length} completed
+            </p>
           </div>
           
           <div style={{ overflowY: 'auto', flex: 1 }}>
@@ -226,6 +362,7 @@ export default function LearnPortal({ params }: { params: Promise<{ subjectId: s
                       <ul style={{ listStyle: 'none', margin: 0, padding: 0, background: '#0f172a' }}>
                         {section.materials?.map((m: any, mIdx: number) => {
                           const isActive = activeMaterial?.id === m.id;
+                          const isCompleted = progresses.some(p => p.materialId === m.id && p.completed);
                           return (
                             <li key={m.id}>
                               <button 
@@ -239,9 +376,9 @@ export default function LearnPortal({ params }: { params: Promise<{ subjectId: s
                                   display: 'flex', gap: '16px', alignItems: 'flex-start'
                                 }}
                               >
-                                <div style={{ marginTop: '2px', opacity: isActive ? 1 : 0.4 }}>
-                                  <div style={{ width: '16px', height: '16px', border: isActive ? 'none' : '2px solid var(--text-secondary)', background: isActive ? 'var(--accent-primary)' : 'transparent', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    {isActive && <span style={{ fontSize: '10px', color: '#fff' }}>✓</span>}
+                                <div style={{ marginTop: '2px', opacity: isActive || isCompleted ? 1 : 0.4 }}>
+                                  <div style={{ width: '16px', height: '16px', border: isCompleted ? 'none' : '2px solid var(--text-secondary)', background: isCompleted ? '#10b981' : 'transparent', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {isCompleted && <span style={{ fontSize: '10px', color: '#fff', fontWeight: 'bold' }}>✓</span>}
                                   </div>
                                 </div>
                                 <div>
@@ -334,16 +471,103 @@ export default function LearnPortal({ params }: { params: Promise<{ subjectId: s
           )}
 
           {activeTab === 'Q & A' && (
-            <div style={{ maxWidth: '800px', textAlign: 'center', padding: '64px 0' }}>
-              <span style={{ fontSize: '3rem', opacity: 0.5 }}>💬</span>
-              <h3 style={{ marginTop: '16px', color: 'var(--text-secondary)' }}>Q&A Section Coming Soon</h3>
+            <div style={{ maxWidth: '800px' }}>
+              <div className="glass-panel" style={{ padding: '24px', marginBottom: '32px' }}>
+                <h3 style={{ marginBottom: '16px' }}>Ask a Question</h3>
+                <form onSubmit={handlePostQuestion} className="flex-col">
+                  <input type="text" placeholder="Title (optional)" value={newQuestionTitle} onChange={e=>setNewQuestionTitle(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
+                  <textarea placeholder="Describe your question in detail..." value={newQuestionBody} onChange={e=>setNewQuestionBody(e.target.value)} rows={4} required style={{ padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)', color: '#fff', resize: 'vertical' }} />
+                  <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-end', padding: '8px 24px' }}>Post Question</button>
+                </form>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                {questions.length === 0 ? (
+                  <p style={{ color: 'var(--text-secondary)' }}>No questions asked yet. Be the first!</p>
+                ) : (
+                  questions.map(q => (
+                    <div key={q.id} style={{ padding: '24px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                          {q.student?.name?.charAt(0)}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 'bold' }}>{q.student?.name}</div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{new Date(q.createdAt).toLocaleDateString()}</div>
+                        </div>
+                      </div>
+                      {q.title && <h4 style={{ margin: '0 0 8px 0' }}>{q.title}</h4>}
+                      <p style={{ color: '#e2e8f0', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{q.body}</p>
+                      
+                      {/* Answers */}
+                      {q.answers && q.answers.length > 0 && (
+                        <div style={{ marginTop: '24px', paddingLeft: '24px', borderLeft: '2px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          {q.answers.map((a: any) => (
+                            <div key={a.id} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: a.author?.role !== 'STUDENT' ? '#10b981' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                                {a.author?.name?.charAt(0)}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                                  <span style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{a.author?.name}</span>
+                                  {a.author?.role !== 'STUDENT' && <span style={{ fontSize: '0.7rem', background: 'rgba(16,185,129,0.2)', color: '#10b981', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>INSTRUCTOR</span>}
+                                </div>
+                                <p style={{ fontSize: '0.9rem', color: '#cbd5e1', marginTop: '4px', whiteSpace: 'pre-wrap' }}>{a.body}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div style={{ marginTop: '24px', display: 'flex', gap: '8px' }}>
+                        <input type="text" placeholder="Write a reply..." value={replyBody[q.id] || ''} onChange={e=>setReplyBody({...replyBody, [q.id]: e.target.value})} style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)', color: '#fff' }} />
+                        <button onClick={() => handlePostReply(q.id)} className="btn btn-primary" style={{ padding: '8px 16px' }}>Reply</button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
 
           {activeTab === 'REVIEWS' && (
-            <div style={{ maxWidth: '800px', textAlign: 'center', padding: '64px 0' }}>
-              <span style={{ fontSize: '3rem', opacity: 0.5 }}>⭐</span>
-              <h3 style={{ marginTop: '16px', color: 'var(--text-secondary)' }}>Review System Coming Soon</h3>
+            <div style={{ maxWidth: '800px' }}>
+              <div className="glass-panel" style={{ padding: '24px', marginBottom: '32px' }}>
+                <h3 style={{ marginBottom: '16px' }}>Leave a Review</h3>
+                <form onSubmit={handlePostReview} className="flex-col">
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <button type="button" key={star} onClick={() => setNewReviewRating(star)} style={{ background: 'none', border: 'none', fontSize: '2rem', cursor: 'pointer', color: star <= newReviewRating ? '#eab308' : 'rgba(255,255,255,0.2)' }}>★</button>
+                    ))}
+                  </div>
+                  <textarea placeholder="Write your review here..." value={newReviewComment} onChange={e=>setNewReviewComment(e.target.value)} rows={4} required style={{ padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)', color: '#fff', resize: 'vertical' }} />
+                  <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-end', padding: '8px 24px' }}>Submit Review</button>
+                </form>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                {reviews.length === 0 ? (
+                  <p style={{ color: 'var(--text-secondary)' }}>No reviews yet.</p>
+                ) : (
+                  reviews.map(r => (
+                    <div key={r.id} style={{ padding: '24px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                          {r.student?.name?.charAt(0)}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 'bold' }}>{r.student?.name}</div>
+                          <div style={{ fontSize: '0.8rem', color: '#eab308' }}>{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</div>
+                        </div>
+                        <div style={{ marginLeft: 'auto', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          {new Date(r.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <p style={{ color: '#e2e8f0', lineHeight: 1.6 }}>{r.comment}</p>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
         </div>

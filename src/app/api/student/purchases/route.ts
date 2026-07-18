@@ -7,7 +7,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const { subjectId, subjectIds, voucherCode, paymentMethod } = await request.json();
+    const { subjectId, subjectIds, voucherCode, paymentMethod, couponId, discountAmount } = await request.json();
     
     // Support both single purchase and cart array purchase
     const idsToProcess = subjectIds || (subjectId ? [subjectId] : []);
@@ -37,6 +37,8 @@ export async function POST(request: Request) {
             subjectId: id,
             voucherCode,
             paymentMethod,
+            couponId,
+            discountAmount,
             status: 'PENDING'
           }
         })

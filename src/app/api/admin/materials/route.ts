@@ -7,9 +7,9 @@ export async function POST(request: Request) {
   if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const { title, type, url, teacherId, sectionId } = await request.json();
+    const { title, type, url, teacherId, sectionId, isPublic } = await request.json();
     const material = await prisma.material.create({
-      data: { title, type, url, teacherId, sectionId },
+      data: { title, type, url, teacherId, sectionId, isPublic: Boolean(isPublic) },
     });
     return NextResponse.json(material, { status: 201 });
   } catch (error) {
